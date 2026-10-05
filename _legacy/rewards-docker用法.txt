@@ -1,0 +1,33 @@
+怎么用（在 Debian 服务器上）
+把 rewards_docker_full.sh 传上去，直接执行：
+
+
+
+bash /root/rewards/rewards-docker.sh
+
+
+脚本自动完成 6 步：克隆 V4-china → 写账号 .env(since02@163.com) → 新增 src/logging/DingTalk.ts → 给 index.ts 打补丁注册钉钉 → 向 compose.yaml 注入 PushPlus+钉钉环境变量 → docker compose up -d --build。
+
+账号你已写死在脚本里（since02@163.com / since002），想换就用环境变量覆盖：
+ACCOUNT_1_EMAIL=别的 ACCOUNT_1_PASSWORD=别的 bash rewards_docker_full.sh
+
+最常用：三条命令
+bash
+
+cd /root/rewards/Microsoft-Rewards-Script
+
+# ① 容器状态（Up=在跑，Exit=挂了）
+docker compose ps
+
+# ② 实时日志（看登录、做任务进度、报错）
+docker compose logs -f --tail=200
+
+# ③ 单独盯钉钉推送（确认补丁生效、摘要真的发出去了）
+docker compose logs -f | grep -i dingtalk
+
+崩了怎么重启
+bash
+
+cd /root/rewards/Microsoft-Rewards-Script
+docker compose up -d --build   # 重新构建并拉起
+docker compose restart    

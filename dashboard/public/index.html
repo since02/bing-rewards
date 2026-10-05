@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>Microsoft Rewards 积分管家</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>🏅 Rewards 积分管家</h1>
+      <div class="topbar-right">
+        <span id="statusBadge" class="status-badge status-unknown" role="status" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="statusText">连接中…</span>
+        </span>
+      </div>
+    </header>
+
+    <nav class="tabbar" aria-label="面板分区">
+      <div class="tabbar-inner" id="tabBar" role="tablist"></div>
+    </nav>
+
+    <main id="main">
+      <div id="tabPanels"></div>
+    </main>
+
+    <footer class="foot">
+      <span id="footerStatus">连接中…</span>
+      <span class="foot-separator">•</span>
+      <span id="footerVersion"></span>
+    </footer>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+# 锁死 LF：本项目有大量 *.sh 要在 Linux/容器内直接执行，
+# 若检出成 CRLF，`bash scripts/xxx.sh` 会报 "$'\r': command not found" 之类怪错。
+# 本项目 scripts/setup.sh 与 doctor.sh 已内置 CRLF 探测与修复，这里从源头避免。
+* text=auto eol=lf
+
+# 明确按文本处理（避免被当二进制）
+*.sh        text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.js        text eol=lf
+*.mjs       text eol=lf
+*.ts        text eol=lf
+*.json      text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.txt       text eol=lf
+Dockerfile  text eol=lf
+
+# 补丁文件含模板字面量，同样按 LF 存
+patches/DingTalk.ts text eol=lf

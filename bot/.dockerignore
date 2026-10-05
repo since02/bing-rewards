@@ -1,0 +1,10 @@
+# 忽略 Git 元数据与 Docker 相关的大文件，减小 build context
+.git
+.gitignore
+Dockerfile
+.dockerignore
+.env
+.env.*
+backups/
+data/
+_legacy/

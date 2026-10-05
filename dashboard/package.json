@@ -1,0 +1,14 @@
+{
+  "name": "ms-rewards-dashboard-zh",
+  "version": "1.1.0",
+  "description": "Microsoft Rewards 中文管理面板（自包含：账户/运行控制/日志/调度/推送/会话登录/诊断）",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

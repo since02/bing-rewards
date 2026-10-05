@@ -1,0 +1,33 @@
+# ============ 密钥与本地数据（绝不能进公开仓库）============
+.env
+.env.*
+*.pem
+*.key
+backups/
+
+# ============ 运行期生成的数据（compose 挂载，含登录会话/日志/数据库）============
+data/bot/config/*
+data/bot/sessions/*
+data/bot/logs/*
+data/dashboard/*
+!data/**/.gitkeep
+
+# ============ 依赖与构建产物 ============
+node_modules/
+npm-debug.log*
+yarn-error.log*
+*.log
+
+# ============ 系统 / 编辑器 ============
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+
+# ============ 临时探索目录（本机特有，非项目内容）============
+_research/
+_verify/
+_api/
+_dash/

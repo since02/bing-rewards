@@ -1,0 +1,24 @@
+# dashboard 目录里放的是**本项目自研面板的全部源码**（server.js / lib/ / public/），
+# 必须随镜像 COPY 进去。因此这里只能用「排除无关文件」的黑名单方式，
+# 不要用「忽略一切、只放行 Dockerfile」的白名单写法（例如忽略全部条目再单独放行
+# Dockerfile）——那样会把 server.js / lib / public 一起排除掉，
+# 构建出来的镜像里只有 Dockerfile，面板部署后根本起不来。
+
+# 1) 目录类：都不要进 build context
+.git/
+.gitignore
+node_modules/
+backups/
+data/
+_legacy/
+docs/          # 仅自检脚本读取，运行期不需要
+
+# 2) 文件类：同理，只排除真正无关或含敏感信息的东西
+.env
+.env.*
+*.log
+Dockerfile
+.dockerignore
+
+# ⚠ 维护提示：本文件只允许出现上述「排除项」，不要改成忽略一切再单独放行的模式，
+#   否则 server.js / lib / public 会被一起排除，镜像只含 Dockerfile，面板起不来。

@@ -1,0 +1,178 @@
+# =============================================================================
+# Microsoft Rewards 自动化 · Docker 完整项目
+# - bot        : chiihero/Microsoft-Rewards-Script (V4-china) 自动做任务赚积分
+# - dashboard  : 本项目自研中文面板（账户/日志/调度/推送/会话登录/诊断）
+# 两服务通过共享网络 + Control API 打通，数据全部挂在 ./data 下持久化。
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # 机器人：自动完成 Rewards 各项任务
+  # ---------------------------------------------------------------------------
+  microsoft-rewards-script:
+    build:
+      context: ./bot
+    image: ms-rewards-bot:china
+    container_name: microsoft-rewards-script
+    restart: unless-stopped
+    volumes:
+      # 配置（首次运行自动生成 config.json）、登录会话（cookie/指纹）、日志
+      - ./data/bot/config:/usr/src/microsoft-rewards-script/config
+      - ./data/bot/sessions:/usr/src/microsoft-rewards-script/sessions
+      - ./data/bot/logs:/usr/src/microsoft-rewards-script/logs
+    # 账号与全局密钥统一放在项目根 .env（含 ACCOUNT_N_* / API_TOKEN 等）
+    # 用简写形式以兼容旧版 docker-compose v1（v2 的 `- path: .env` v1 不支持）
+    env_file:
+      - .env
+    # Chromium 在容器内默认只有 64MB /dev/shm，页面稍多就会 "Page crashed"。
+    # 这里显式放大（也可改用 --disable-dev-shm-usage，但放 shm 性能更好）。
+    shm_size: '1gb'
+    stop_grace_period: '30s'
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'   # 单个日志文件上限
+        max-file: '3'     # 最多保留 3 个，避免 docker 日志无限膨胀
+    environment:
+      # ── 时区与调度 ──────────────────────────────────────────
+      TZ: 'Asia/Shanghai'          # 按你的时区调整；影响 cron 与日志按天滚动
+      NODE_ENV: 'production'
+      CRON_SCHEDULE: '0 9 * * *'    # 每天 09:00（容器时区）跑一次；可用面板调度覆盖
+      RUN_ON_START: 'true'          # 容器启动后立即跑一次
+      SKIP_RANDOM_SLEEP: 'false'    # false = 保留每次调度前的随机等待（防风控，推荐）
+      # run_daily.sh 读取：cron 触发后先随机等 5~30 分钟再真正开跑（防风控）。
+      # 想「到点立刻跑」就把两个值都设为 0，或用 SKIP_RANDOM_SLEEP=true。
+      MIN_SLEEP_MINUTES: '5'
+      MAX_SLEEP_MINUTES: '30'
+      # 单次运行超过这个小时数会被判定卡死并自动终止（防止进程挂起占着锁）
+      STUCK_PROCESS_TIMEOUT_HOURS: '8'
+      # ── Control API（面板依赖，必须开）──────────────────────
+      API_MODE: 'true'
+      API_TOKEN: '${API_TOKEN}'     # 与 dashboard 的 CONTROL_API_TOKEN 必须一致
+      API_PORT: '3010'
+      API_ALLOW_SCHEDULE_WRITE: 'true'   # 允许面板修改调度
+      API_ALLOW_CONFIG_WRITE: 'true'     # 允许面板修改机器人配置
+      API_ALLOW_CONFIG_REVEAL: 'true'    # 允许面板显示 webhook 令牌
+      API_ALLOW_ENV_OVERRIDES: 'true'
+      # ── 国内行为默认值（V4-china 已优化，这里显式开启热搜源）──
+      CONFIG_SEARCH_QUERY_ENGINES: 'china,local'   # 中国热搜(gmya.net)+本地词库
+      # CONFIG_CHINA_API_APPKEY: '${CHINA_API_APPKEY}'  # 填了可解免费档限流
+      # ── 日志与诊断 ───────────────────────────────────────────
+      CONFIG_DEBUG_LOGS: 'false'          # 上游默认 true（日志量很大）；排障时改 true
+      CONFIG_ERROR_DIAGNOSTICS: 'true'    # 面板「诊断」页靠它才有错误文本/截图/HTML
+      # CONFIG_HUMANIZE_ENABLED: 'true'   # 拟人化运行（安静时段 + 完成度随机化），更抗风控
+                                          # 但耗时更长；quietHours 需直接编辑 config.json
+
+      # ── 推送渠道 ──────────────────────────────────────────────
+      # PushPlus 微信推送（国内最稳，无需翻墙）：https://www.pushplus.plus/
+      # 默认开启；.env 的 PUSHPLUS_TOKEN 留空时不发送（安全）。
+      CONFIG_PUSHPLUS_ENABLED: 'true'
+      CONFIG_PUSHPLUS_TOKEN: '${PUSHPLUS_TOKEN}'
+      CONFIG_PUSHPLUS_TITLE: 'Microsoft Rewards'
+      CONFIG_PUSHPLUS_TEMPLATE: 'txt'
+      # ⚠ 变量名必须与上游 CONFIG_* 白名单完全一致，否则会被静默忽略（不报错也不生效）。
+      # Server酱（Turbo，微信扫码拿 SendKey）：https://sct.ftqq.com/
+      #CONFIG_SERVERCHAN_ENABLED: 'true'
+      #CONFIG_SERVERCHAN_SENDKEY: '${SERVERCHAN_SENDKEY}'
+      #CONFIG_SERVERCHAN_TITLE: 'Microsoft Rewards'
+      # Telegram（注意是 BOTTOKEN / CHATID，不是 TOKEN / CHAT_ID）
+      #CONFIG_TELEGRAM_ENABLED: 'true'
+      #CONFIG_TELEGRAM_BOTTOKEN: '${TELEGRAM_TOKEN}'
+      #CONFIG_TELEGRAM_CHATID: '${TELEGRAM_CHAT_ID}'
+      # Discord（注意是 URL，不是 WEBHOOK）
+      #CONFIG_DISCORD_ENABLED: 'true'
+      #CONFIG_DISCORD_URL: '${DISCORD_WEBHOOK}'
+      # ntfy（自建/公共）
+      #CONFIG_NTFY_ENABLED: 'true'
+      #CONFIG_NTFY_URL: '${NTFY_URL}'
+      #CONFIG_NTFY_TOPIC: '${NTFY_TOPIC}'
+      #CONFIG_NTFY_PRIORITY: '3'
+      # ClawBot（微信直连，凭证由扫码生成；authFile 为容器内可写的绝对路径）
+      #CONFIG_CLAWBOT_ENABLED: 'true'
+      #CONFIG_CLAWBOT_AUTHFILE: '/usr/src/microsoft-rewards-script/config/clawbot.json'
+      # 只推送关键日志（默认关；开启后大幅减少推送噪音）
+      #CONFIG_WEBHOOK_LOG_FILTER_ENABLED: 'true'
+      #CONFIG_WEBHOOK_LOG_FILTER_MODE: 'whitelist'
+      #CONFIG_WEBHOOK_LOG_FILTER_LEVELS: 'error'
+      #CONFIG_WEBHOOK_LOG_FILTER_KEYWORDS: 'collected,Fraud_UserWarning_BotScore_UX'
+      # ── 钉钉（内置补丁，默认开；DINGTALK_WEBHOOK 留空则不发送）──
+      # 钉钉群「智能群助手 → 添加机器人 → 自定义」拿完整 webhook URL，
+      # 或只填 access_token（脚本自动拼 oapi 地址）；开启「加签」时填 DINGTALK_SECRET。
+      DINGTALK_ENABLED: 'true'
+      DINGTALK_WEBHOOK: '${DINGTALK_WEBHOOK}'
+      DINGTALK_SECRET: '${DINGTALK_SECRET}'
+      DINGTALK_TITLE: 'Microsoft Rewards'
+      DINGTALK_MIN_LEVEL: 'warn'
+    ports:
+      # Control API：面板在同一 Docker 网络内通过服务名访问，无需对外暴露；
+      # 这里绑定到 127.0.0.1 只是方便本机调试（curl http://127.0.0.1:3010/health）。
+      - '127.0.0.1:3010:3010'
+    healthcheck:
+      # scripts/docker/healthcheck.sh 是 sh 脚本（内部通过 heredoc 调 node 打 /health），
+      # 必须用 sh 执行；写成 `node ... .sh` 会因为语法错误导致健康检查永远失败。
+      test: ['CMD-SHELL', 'sh /usr/src/microsoft-rewards-script/scripts/docker/healthcheck.sh']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - rewards
+
+  # ---------------------------------------------------------------------------
+  # 面板：可视化账户/日志/调度/推送
+  # ---------------------------------------------------------------------------
+  rewards-dashboard:
+    build:
+      context: ./dashboard
+    image: ms-rewards-dashboard:latest
+    container_name: rewards-dashboard
+    restart: unless-stopped
+    depends_on:
+      - microsoft-rewards-script
+    ports:
+      - '8890:8890'                # 浏览器访问 http://<服务器IP>:8890
+    environment:
+      CONTROL_API_URL: 'http://microsoft-rewards-script:3010'   # 同一网络用服务名
+      CONTROL_API_TOKEN: '${API_TOKEN}'                         # 与 bot 的 API_TOKEN 一致
+      TZ: 'Asia/Shanghai'
+      PORT: '8890'
+      # 必须显式指定！否则面板默认写到镜像内的 ../data，重建容器历史数据会丢。
+      DATA_DIR: '/data'
+      POLL_MS: '5000'
+      LOG_REPLAY: '300'
+      # 面板登录保护（两者都填才启用 Basic Auth；只填一个等于没开）
+      DASHBOARD_USERNAME: '${DASHBOARD_USERNAME}'
+      DASHBOARD_PASSWORD: '${DASHBOARD_PASSWORD}'
+      # ── Docker 集成（账户增删 / 手动登录容器 / 重启机器人）──────
+      # 以下 PANEL_* 均为**面板自有**变量（不是给机器人的 CONFIG_* 覆盖），
+      # 加前缀是为了不被 doctor.sh 的 CONFIG_* 白名单校验误判。
+      # 面板经这个 socket 调 Docker HTTP API（镜像内不装 docker CLI）
+      PANEL_DOCKER_SOCK: '/var/run/docker.sock'
+      PANEL_BOT_CONTAINER: 'microsoft-rewards-script'  # 与 bot 的 container_name 一致
+      PANEL_ENV_FILE: '/shared/env/.env'               # 项目根 .env 的挂载路径
+      # 手动登录：用与机器人相同的镜像，noVNC 映射到宿主机端口
+      PANEL_MANUAL_LOGIN_IMAGE: 'ms-rewards-bot:china' # 与 bot 的 image 一致
+      PANEL_MANUAL_LOGIN_PORT: '7900'
+      # ⚠ 手动登录容器必须挂到与机器人**同一份**会话/配置目录，否则登录后
+      #   会话写进临时卷、容器一退就没了（表现为「登录完还是掉线」）。
+      #   ${PWD} = 项目根目录的绝对路径；插值失败会被面板自动回退成命名卷。
+      PANEL_SESSIONS_BIND: '${PWD}/data/bot/sessions'
+      PANEL_CONFIG_BIND: '${PWD}/data/bot/config'
+      PANEL_SESSIONS_VOLUME: 'rewards_bot_sessions'    # 上面 bind 失效时的兜底命名卷
+      PANEL_CONFIG_VOLUME: 'rewards_bot_config'
+    volumes:
+      - ./data/dashboard:/data      # 面板自身数据（积分趋势快照 history.json）
+      - ./.env:/shared/env/.env:ro  # 面板读/写账户与钉钉配置（增删账户会回写）
+      # ⚠ 只读挂载也仍是「可操作宿主机 Docker」的权限，务必不要暴露到公网，
+      #   并配合 DASHBOARD_USERNAME/PASSWORD 使用。
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - rewards
+
+networks:
+  rewards:
+    driver: bridge
